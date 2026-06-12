@@ -27,10 +27,7 @@ def process_all_html(input_dir, output_dir):
 
         source_id_tag = soup.find("meta", property="og:url")
         job_title_tag = soup.find(attrs={"data-automation": "job-detail-title"})
-        company_tag = (
-            soup.find(attrs={"data-automation": "advertiser-name"}) or
-            soup.find(attrs={"data-automation": "company-profile"})
-        )
+        company_tag = soup.find(attrs={"data-automation": "advertiser-name"})
         description_tag = (
             soup.find(attrs={"data-automation": "jobAdDetails"}) or
             soup.find(attrs={"data-automation": "job-detail-description"})
