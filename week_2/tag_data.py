@@ -37,7 +37,7 @@ Job Description:
 
 Response format example: Python, SQL, Docker, AWS"""
 
-                response = prompt_model("llama3.1", prompt)
+                response = prompt_model("gemini-2.5-flash", prompt)
 
                 if not response or response.startswith("[Error]"):
                     raise ValueError(f"Bad response: {response}")
