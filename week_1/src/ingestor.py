@@ -26,7 +26,6 @@ def ingest_all_mhtml(input_dir, output_dir):
                     payload = part.get_payload(decode=True)
                     html = payload.decode("utf-8", errors="ignore")
                     print(f"\n✅ Extracted: {file.name}")
-                    break
 
         else:
             print(f"\n⚠️  No HTML content found in: {file.name}")
