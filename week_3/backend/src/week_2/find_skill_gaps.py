@@ -1,47 +1,30 @@
 import sqlite3
-import re
 import time
+from pathlib import Path
 from pydantic import BaseModel
 from typing import List, Dict
 from prompt_model import prompt_model
 
+# Rate limit justification:
+# Gemini 2.5 Flash: 5 RPM, 20 RPD
+# Only 1 LLM call is made per run (resume skill extraction)
+# RETRY_DELAY = 12 seconds = 60s / 5 RPM to stay within rate limit
 RETRY_LIMIT = 3
 RETRY_DELAY = 12
 
-EXCEPTIONS = ["a/b testing", "ci/cd"]
-
-NON_TECH = {
-    "agile",
-    "scrum",
-    "jira",
-    "leadership",
-    "management",
-    "communication",
-    "teamwork",
-    "problem solving",
-    "jenkins",
-    "reconciliation frameworks",
-    "vendor back-office systems",
-    "normalization",
-    "validation checks",
-    "user acquisition analytics",
-    "data parsing",
-}
-
 JAILBREAK_PATTERNS = [
-    r"ignore.{0,20}(previous|above|prior).{0,20}instruction",
-    r"forget.{0,20}(previous|above|prior).{0,20}instruction",
-    r"you are now",
-    r"act as",
-    r"pretend",
-    r"do not follow",
-    r"override",
-    r"system prompt",
-    r"disregard",
-    r"new instruction",
-    r"ignore all",
+    "ignore previous instructions",
+    "ignore all instructions",
+    "disregard previous",
+    "you are now",
+    "act as",
+    "pretend you are",
+    "do not follow",
+    "override instructions",
+    "system prompt",
+    "new instructions",
+    "forget previous",
 ]
-
 
 class SkillGapResult(BaseModel):
     gaps: List[str]
@@ -49,61 +32,47 @@ class SkillGapResult(BaseModel):
     tokens: int
     demand: Dict[str, int]
 
-
 def is_jailbreak(text: str) -> bool:
     text_lower = text.lower()
     for pattern in JAILBREAK_PATTERNS:
-        if re.search(pattern, text_lower):
+        if pattern in text_lower:
             return True
     return False
 
-
-def parse_skills(skills_text: str) -> set:
-    skills = set()
-    for skill in skills_text.split(","):
-        skill = skill.strip().lower()
-        skill = re.sub(r"[^\w\s/+#.\-]", "", skill).strip(".")
-        if not skill:
-            continue
-        if skill in EXCEPTIONS:
-            skills.add(skill)
-            continue
-        for part in skill.split("/"):
-            part = part.strip().strip(".")
-            if part and part not in NON_TECH:
-                skills.add(part)
-    return skills
-
-
-def extract_resume_skills(resume_text: str) -> tuple[set, int]:
+def extract_skills_from_text(text: str, context: str) -> tuple[list, int]:
     for attempt in range(1, RETRY_LIMIT + 1):
         try:
-            prompt = f"""Extract only the technical skills, tools, programming languages, and frameworks from this resume.
-Return ONLY a comma separated list. No explanations, no numbering, no extra text.
-Ignore certifications, soft skills, languages spoken, and non-technical skills.
+            prompt = f"""Extract all technical skills, tools, programming languages, and frameworks from this {context}.
+Return ONLY a JSON array of lowercase strings. No explanations, no markdown, no extra text.
+Treat CI/CD and A/B testing as single skills. Split combined skills like AWS/Azure/GCP into separate items.
+Ignore soft skills, certifications, and non-technical skills.
 
-Resume:
-{resume_text}
+Text:
+{text[:1500]}
 
-Response format example: Python, SQL, Docker, AWS"""
+Example response: ["python", "sql", "docker", "aws", "ci/cd"]"""
 
             response = prompt_model("gemini-2.5-flash", prompt)
 
             if not response or response.startswith("[Error]"):
                 raise ValueError(f"Bad response: {response}")
 
+            clean = response.strip().strip("```json").strip("```").strip()
+            import json
+            skills = json.loads(clean)
+            skills = [s.lower().strip() for s in skills if isinstance(s, str) and s.strip()]
+
             words = len((prompt + response).split())
             tokens = words * 4
-            skills = parse_skills(response)
+
             return skills, tokens
 
         except Exception as e:
-            print(f"[Resume] Attempt {attempt} failed: {e}")
+            print(f"[{context}] Attempt {attempt} failed: {e}")
             if attempt < RETRY_LIMIT:
                 time.sleep(RETRY_DELAY)
 
-    return set(), 0
-
+    return [], 0
 
 def find_skill_gaps(input_file_path: str, db_url: str) -> SkillGapResult:
     start_time = time.time()
@@ -121,37 +90,39 @@ def find_skill_gaps(input_file_path: str, db_url: str) -> SkillGapResult:
         return SkillGapResult(gaps=[], time=0, tokens=0, demand={})
 
     try:
-        resume_skills, tokens = extract_resume_skills(resume_text)
+        resume_skills, tokens = extract_skills_from_text(resume_text, "resume")
         total_tokens += tokens
+        resume_skills_set = set(resume_skills)
     except Exception as e:
         print(f"[Error] Could not extract resume skills: {e}")
         return SkillGapResult(gaps=[], time=0, tokens=0, demand={})
 
     try:
+        if not Path(db_url).exists():
+            print(f"[Error] Database not found: {db_url}")
+            return SkillGapResult(gaps=[], time=0, tokens=0, demand={})
+
         conn = sqlite3.connect(db_url)
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT tech_stack FROM jobs WHERE tech_stack IS NOT NULL AND tech_stack != ''"
-        )
+        cursor.execute("SELECT tech_stack FROM jobs WHERE tech_stack IS NOT NULL AND tech_stack != ''")
         rows = cursor.fetchall()
         conn.close()
     except Exception as e:
         print(f"[Error] Could not read database: {e}")
         return SkillGapResult(gaps=[], time=0, tokens=0, demand={})
 
-    # count demand per skill
     skill_demand: Dict[str, int] = {}
     for row in rows:
-        for skill in parse_skills(row[0]):
+        job_skills, tokens = extract_skills_from_text(row[0], "job tech stack")
+        total_tokens += tokens
+        for skill in job_skills:
             skill_demand[skill] = skill_demand.get(skill, 0) + 1
 
     market_skills = set(skill_demand.keys())
-    gap_skills = market_skills - resume_skills
+    gap_skills = market_skills - resume_skills_set
     gaps = sorted(gap_skills)
 
-    # only show demand for gap skills
     demand = {skill: skill_demand[skill] for skill in gaps}
-
     elapsed = int((time.time() - start_time) * 1000)
 
     return SkillGapResult(gaps=gaps, time=elapsed, tokens=total_tokens, demand=demand)

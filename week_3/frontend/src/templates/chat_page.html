@@ -69,7 +69,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
     <script>
-      const BACKEND_URL = "{{ backend_url }}";
+      const BACKEND_URL = "";
       const chatBox = document.getElementById("chat-box");
       const userInput = document.getElementById("user-input");
       const sendBtn = document.getElementById("send-btn");
@@ -98,7 +98,7 @@
             appendMessage("bot", "PDF uploaded! Analyzing skill gaps...");
 
             try {
-                const response = await fetch(`${BACKEND_URL}/chat`, {
+                const response = await fetch(`/chat`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ message: "", pdf_text: pdfText })
