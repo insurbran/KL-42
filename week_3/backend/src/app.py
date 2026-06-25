@@ -32,14 +32,28 @@ async def chat(request: Request):
         message = body.get("message", "")
         pdf_text = body.get("pdf_text", "")
 
-        if pdf_text:
+        if pdf_text and not message:
+            # auto skill gap on upload
             temp_path = "src/week_2/data/temp_resume.txt"
             with open(temp_path, "w", encoding="utf-8") as f:
                 f.write(pdf_text)
             result = find_skill_gaps(temp_path, DB_PATH)
             reply = f"Skill gaps found: {', '.join(result.gaps)}"
+
+        elif pdf_text and message:
+            # user asking something about the PDF
+            prompt = f"""You are a resume assistant. Use the resume below to answer the user's question.
+
+Resume:
+{pdf_text}
+
+User question: {message}"""
+            reply = prompt_model("llama3.1", prompt)
+
         elif message:
+            # normal chat no PDF
             reply = prompt_model("llama3.1", message)
+
         else:
             reply = "Please type a message or upload a PDF resume."
 

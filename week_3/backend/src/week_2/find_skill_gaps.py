@@ -1,3 +1,4 @@
+import json
 import sqlite3
 import time
 from pathlib import Path
@@ -26,11 +27,13 @@ JAILBREAK_PATTERNS = [
     "forget previous",
 ]
 
+
 class SkillGapResult(BaseModel):
     gaps: List[str]
     time: int
     tokens: int
     demand: Dict[str, int]
+
 
 def is_jailbreak(text: str) -> bool:
     text_lower = text.lower()
@@ -39,16 +42,27 @@ def is_jailbreak(text: str) -> bool:
             return True
     return False
 
-def extract_skills_from_text(text: str, context: str) -> tuple[list, int]:
+
+def parse_skills(skills_text: str) -> list:
+    skills = []
+    for skill in skills_text.split(","):
+        skill = skill.strip().lower()
+        if not skill:
+            continue
+        skills.append(skill)
+    return skills
+
+
+def extract_resume_skills(resume_text: str) -> tuple[list, int]:
     for attempt in range(1, RETRY_LIMIT + 1):
         try:
-            prompt = f"""Extract all technical skills, tools, programming languages, and frameworks from this {context}.
+            prompt = f"""Extract all technical skills, tools, programming languages, and frameworks from this resume.
 Return ONLY a JSON array of lowercase strings. No explanations, no markdown, no extra text.
 Treat CI/CD and A/B testing as single skills. Split combined skills like AWS/Azure/GCP into separate items.
 Ignore soft skills, certifications, and non-technical skills.
 
-Text:
-{text[:1500]}
+Resume:
+{resume_text[:1500]}
 
 Example response: ["python", "sql", "docker", "aws", "ci/cd"]"""
 
@@ -58,7 +72,6 @@ Example response: ["python", "sql", "docker", "aws", "ci/cd"]"""
                 raise ValueError(f"Bad response: {response}")
 
             clean = response.strip().strip("```json").strip("```").strip()
-            import json
             skills = json.loads(clean)
             skills = [s.lower().strip() for s in skills if isinstance(s, str) and s.strip()]
 
@@ -68,11 +81,12 @@ Example response: ["python", "sql", "docker", "aws", "ci/cd"]"""
             return skills, tokens
 
         except Exception as e:
-            print(f"[{context}] Attempt {attempt} failed: {e}")
+            print(f"[Resume] Attempt {attempt} failed: {e}")
             if attempt < RETRY_LIMIT:
                 time.sleep(RETRY_DELAY)
 
     return [], 0
+
 
 def find_skill_gaps(input_file_path: str, db_url: str) -> SkillGapResult:
     start_time = time.time()
@@ -90,7 +104,7 @@ def find_skill_gaps(input_file_path: str, db_url: str) -> SkillGapResult:
         return SkillGapResult(gaps=[], time=0, tokens=0, demand={})
 
     try:
-        resume_skills, tokens = extract_skills_from_text(resume_text, "resume")
+        resume_skills, tokens = extract_resume_skills(resume_text)
         total_tokens += tokens
         resume_skills_set = set(resume_skills)
     except Exception as e:
@@ -111,10 +125,10 @@ def find_skill_gaps(input_file_path: str, db_url: str) -> SkillGapResult:
         print(f"[Error] Could not read database: {e}")
         return SkillGapResult(gaps=[], time=0, tokens=0, demand={})
 
+    # use simple parsing for market skills — fast and deterministic
     skill_demand: Dict[str, int] = {}
     for row in rows:
-        job_skills, tokens = extract_skills_from_text(row[0], "job tech stack")
-        total_tokens += tokens
+        job_skills = parse_skills(row[0])
         for skill in job_skills:
             skill_demand[skill] = skill_demand.get(skill, 0) + 1
 
