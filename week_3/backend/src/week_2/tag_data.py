@@ -36,7 +36,7 @@ def tag_data(db_url: str):
     start_time = time.time()
 
     for batch_start in range(0, len(rows), BATCH_SIZE):
-        batch = rows[batch_start:batch_start + BATCH_SIZE]
+        batch = rows[batch_start : batch_start + BATCH_SIZE]
         batch_num = batch_start // BATCH_SIZE
 
         batch_success = []
@@ -77,9 +77,12 @@ Response format example: Python, SQL, Docker, AWS"""
 
         # batch commit
         for tech_stack, source_id in batch_success:
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE jobs SET tech_stack = ? WHERE source_id = ?
-            """, (tech_stack, source_id))
+            """,
+                (tech_stack, source_id),
+            )
         conn.commit()
         print(f"[Batch {batch_num}] Committed {len(batch_success)} jobs.")
 

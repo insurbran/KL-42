@@ -1,17 +1,17 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
 import sys
 import os
 from pathlib import Path
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 load_dotenv()
 
 sys.path.append(str(Path(__file__).parent / "week_2"))
 
-from find_skill_gaps import find_skill_gaps
-from prompt_model import prompt_model
+from find_skill_gaps import find_skill_gaps  # noqa: E402
+from prompt_model import prompt_model  # noqa: E402
 
 app = FastAPI()
 
@@ -23,6 +23,7 @@ app.add_middleware(
 )
 
 DB_PATH = os.getenv("DB_PATH", "src/week_2/data/jobs_d1.db")
+
 
 @app.post("/chat")
 async def chat(request: Request):

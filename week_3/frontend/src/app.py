@@ -16,7 +16,5 @@ BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8001")
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     return templates.TemplateResponse(
-        request=request,
-        name="chat_page.html",
-        context={"backend_url": BACKEND_URL}
+        request=request, name="chat_page.html", context={"backend_url": BACKEND_URL}
     )

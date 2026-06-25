@@ -19,16 +19,12 @@ def prompt_model(model: str, prompt: str) -> str:
     try:
         if model in OLLAMA_MODELS:
             response = ollama_client.chat(
-                model=model,
-                messages=[{"role": "user", "content": prompt}]
+                model=model, messages=[{"role": "user", "content": prompt}]
             )
             return response["message"]["content"]
 
         elif model in GEMINI_MODELS:
-            response = client.models.generate_content(
-                model=model,
-                contents=prompt
-            )
+            response = client.models.generate_content(model=model, contents=prompt)
             return response.text
 
         else:
@@ -42,6 +38,7 @@ if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("Usage: uv run prompt_model.py <model> <prompt>")
         import sys
+
         sys.exit()
 
     model = sys.argv[1]

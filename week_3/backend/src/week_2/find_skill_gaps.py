@@ -11,10 +11,21 @@ RETRY_DELAY = 12
 EXCEPTIONS = ["a/b testing", "ci/cd"]
 
 NON_TECH = {
-    "agile", "scrum", "jira", "leadership", "management", "communication",
-    "teamwork", "problem solving", "jenkins", "reconciliation frameworks",
-    "vendor back-office systems", "normalization", "validation checks",
-    "user acquisition analytics", "data parsing"
+    "agile",
+    "scrum",
+    "jira",
+    "leadership",
+    "management",
+    "communication",
+    "teamwork",
+    "problem solving",
+    "jenkins",
+    "reconciliation frameworks",
+    "vendor back-office systems",
+    "normalization",
+    "validation checks",
+    "user acquisition analytics",
+    "data parsing",
 }
 
 JAILBREAK_PATTERNS = [
@@ -31,11 +42,13 @@ JAILBREAK_PATTERNS = [
     r"ignore all",
 ]
 
+
 class SkillGapResult(BaseModel):
     gaps: List[str]
     time: int
     tokens: int
     demand: Dict[str, int]
+
 
 def is_jailbreak(text: str) -> bool:
     text_lower = text.lower()
@@ -44,11 +57,12 @@ def is_jailbreak(text: str) -> bool:
             return True
     return False
 
+
 def parse_skills(skills_text: str) -> set:
     skills = set()
     for skill in skills_text.split(","):
         skill = skill.strip().lower()
-        skill = re.sub(r'[^\w\s/+#.\-]', '', skill).strip(".")
+        skill = re.sub(r"[^\w\s/+#.\-]", "", skill).strip(".")
         if not skill:
             continue
         if skill in EXCEPTIONS:
@@ -59,6 +73,7 @@ def parse_skills(skills_text: str) -> set:
             if part and part not in NON_TECH:
                 skills.add(part)
     return skills
+
 
 def extract_resume_skills(resume_text: str) -> tuple[set, int]:
     for attempt in range(1, RETRY_LIMIT + 1):
@@ -89,6 +104,7 @@ Response format example: Python, SQL, Docker, AWS"""
 
     return set(), 0
 
+
 def find_skill_gaps(input_file_path: str, db_url: str) -> SkillGapResult:
     start_time = time.time()
     total_tokens = 0
@@ -114,7 +130,9 @@ def find_skill_gaps(input_file_path: str, db_url: str) -> SkillGapResult:
     try:
         conn = sqlite3.connect(db_url)
         cursor = conn.cursor()
-        cursor.execute("SELECT tech_stack FROM jobs WHERE tech_stack IS NOT NULL AND tech_stack != ''")
+        cursor.execute(
+            "SELECT tech_stack FROM jobs WHERE tech_stack IS NOT NULL AND tech_stack != ''"
+        )
         rows = cursor.fetchall()
         conn.close()
     except Exception as e:
