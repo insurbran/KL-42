@@ -23,7 +23,10 @@ def prompt_model(model: str, prompt: str) -> str:
             return response["message"]["content"]
 
         elif model in GEMINI_MODELS:
-            client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+            api_key = os.getenv("GOOGLE_API_KEY")
+            if not api_key:
+                return "[Error] GOOGLE_API_KEY not set"
+            client = genai.Client(api_key=api_key)
             response = client.models.generate_content(
                 model=model,
                 contents=prompt
