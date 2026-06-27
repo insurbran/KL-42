@@ -15,13 +15,6 @@ from prompt_model import prompt_model  # noqa: E402
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 DB_PATH = os.getenv("DB_PATH", "src/week_2/data/jobs_d1.db")
 
 
